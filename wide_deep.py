@@ -3,18 +3,17 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 import tempfile
+import os
+import sys
+import argparse
+
+import scipy as sp
 import pandas as pd
 import tensorflow as tf
-import os
-from sklearn.utils import shuffle
-import scipy as sp
 from tensorflow.contrib.learn import LinearClassifier,DNNClassifier,DNNLinearCombinedClassifier
-from tensorflow.contrib.layers import embedding_column, sparse_column_with_integerized_feature
-SUB = True
-directory = "pre/"
-model_dir="model"
-model_type="wide_n_deep"
-train_steps=200
+from sklearn.utils import shuffle
+
+FLAGS = None
 
 COLUMNS = [u'label', u'clickTime', u'conversionTime', u'creativeID', u'userID',
        u'positionID', u'connectionType', u'telecomsOperator', u'age',
@@ -130,7 +129,7 @@ def input_fn(df):
   return feature_cols, label
 
 
-def data_process(train_file_name, test_file_name):
+def data_process(train_file_name, test_file_name,directory):
     print("data processing...")
     # 特征整合
     df_train = pd.read_csv(train_file_name)
@@ -170,35 +169,67 @@ def logloss(act, pred):
   ll = -sp.mean(act*sp.log(pred) + sp.subtract(1,act)*sp.log(1-pred))
   return ll
 
-#模型训练和预测
+def train_and_eval(model_type,train_steps,directory,SUB):
+    #模型训练和预测
+    model_dir = directory+'model/'
+    train_data=directory+"train.csv"
+    test_data=directory+"test.csv"
+    if not (os.path.exists(directory+"train_div.csv") or os.path.exists(directory+"test_div.csv")):
+        data_process(train_data, test_data,directory)
+    if(SUB):
+        print("use all train data")
+        df_train = pd.read_csv(directory+"train_all.csv")
+        df_test = pd.read_csv(directory+"test_all.csv")
+        model_dir = tempfile.mkdtemp() if not model_dir else model_dir
 
-train_data=directory+"train.csv"
-test_data=directory+"test.csv"
-if not (os.path.exists(directory+"train_div.csv") or os.path.exists(directory+"test_div.csv")):
-    data_process(train_data, test_data)
-if(SUB):
-    print("use all train data")
-    df_train = pd.read_csv(directory+"train_all.csv")
-    df_test = pd.read_csv(directory+"test_all.csv")
-    model_dir = tempfile.mkdtemp() if not model_dir else model_dir
+        m = build_estimator(model_dir, model_type)
+        m.fit(input_fn=lambda: input_fn(df_train), steps=train_steps)
+        pred = m.predict_proba(input_fn=lambda: input_fn(df_test), as_iterable=False)
+        pred = pred[:, 1]
 
-    m = build_estimator(model_dir, model_type)
-    m.fit(input_fn=lambda: input_fn(df_train), steps=train_steps)
-    pred = m.predict_proba(input_fn=lambda: input_fn(df_test), as_iterable=False, steps=1)
-    pred = pred[:, 1]
-
-    # 输出
-    df_test['prob'] = pred
-    ans = df_test[['instanceID', 'prob']]
-    ans.to_csv(directory + 'submission.csv', index=None)
-else:
-    print("use only 80% train data")
-    df_train = pd.read_csv(directory+"train_div.csv")
-    df_test = pd.read_csv(directory+"test_div.csv")
-    model_dir = tempfile.mkdtemp() if not model_dir else model_dir
-    m = build_estimator(model_dir, model_type)
-    m.fit(input_fn=lambda: input_fn(df_train), steps=train_steps)
-    results = m.evaluate(input_fn=lambda: input_fn(df_test), as_iterable=False,step=1)
-    for key in sorted(results):
-        print("%s: %s" % (key, results[key]))
-
+        # 输出
+        df_test['prob'] = pred
+        ans = df_test[['instanceID', 'prob']]
+        ans.to_csv(directory + 'submission.csv', index=None)
+    else:
+        print("use only 80% train data")
+        df_train = pd.read_csv(directory+"train_div.csv")
+        df_test = pd.read_csv(directory+"test_div.csv")
+        model_dir = tempfile.mkdtemp() if not model_dir else model_dir
+        m = build_estimator(model_dir, model_type)
+        m.fit(input_fn=lambda: input_fn(df_train), steps=train_steps)
+        results = m.evaluate(input_fn=lambda: input_fn(df_test), as_iterable=False,step=1)
+        for key in sorted(results):
+            print("%s: %s" % (key, results[key]))
+def main(_):
+    train_and_eval(FLAGS.model_type, FLAGS.train_steps, FLAGS.directory,FLAGS.SUB)
+if __name__ =="__main__":
+    parser = argparse.ArgumentParser()
+    parser.register("type", "bool", lambda v: v.lower() == "true")
+    parser.add_argument(
+        "--directory",
+        type=str,
+        default="/Users/richardbai/Desktop/TecentCompetition/pre/",
+        #default="/data1/NLPRMNT/baihe/TecentCompetition/pre/",
+        help="directory for data and model "
+    )
+    parser.add_argument(
+        "--SUB",
+        type=bool,
+        default=False,
+        help="True for submission False for experiments "
+    )
+    parser.add_argument(
+        "--model_type",
+        type=str,
+        default="wide",
+        help="wide, deep or wide_n_deep "
+    )
+    parser.add_argument(
+        "--train_steps",
+        type=int,
+        default="2000",
+        help="train steps "
+    )
+    FLAGS, unparsed = parser.parse_known_args()
+    tf.app.run(main=main,argv=[sys.argv[0]] + unparsed)
