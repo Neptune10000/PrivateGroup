@@ -29,10 +29,13 @@ def data_preprocess(directory=DIRECTORY, test_size=TEST_SIZE):
     df_appc = pd.read_csv(directory + 'app_categories.csv')
     df_pos = pd.read_csv(directory + 'position.csv')
 
+    # df_app_installed = pd.read_csv(directory + 'user_installedapps.csv')
+    # df_app_installed['Appcount'] = df_app_installed.groupby('userID').transform('count').values
+
     df_ad_app = pd.merge(df_ad, df_appc, on="appID", suffixes=('_a', '_b'))
     df_train_user = pd.merge(df_train, df_user, on="userID", suffixes=('_a', '_b'))
     df_train_user_app = pd.merge(df_train_user, df_ad_app, on="creativeID", suffixes=('_a', '_b'))
-    df_train_all=pd.merge(df_train_user_app, df_pos, on="positionID", suffixes=('_a', '_b'))
+    df_train_all = pd.merge(df_train_user_app, df_pos, on="positionID", suffixes=('_a', '_b'))
 
     xy_train, xy_test = train_test_split(df_train_all, test_size=test_size, random_state=42)
 
