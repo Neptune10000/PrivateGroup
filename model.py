@@ -155,7 +155,7 @@ def training(model_type, directory, batch_size,epoch):
     train_steps = df_train.shape[0] // batch_size * epoch
     model_dir = tempfile.mkdtemp() if not model_dir else model_dir
     m = build_estimator(model_dir, model_type)
-    #m.fit(input_fn=lambda: input_fn(df_train,batch_size=batch_size,mode='train'), steps=train_steps)
+    m.fit(input_fn=lambda: input_fn(df_train,batch_size=batch_size,mode='train'), steps=train_steps)
     results = m.evaluate(input_fn=lambda: input_fn(df_test), steps=1)
     for key in sorted(results):
         print("%s: %s" % (key, results[key]))
