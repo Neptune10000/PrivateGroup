@@ -2,33 +2,20 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
-import tempfile
-import pandas as pd
-import tensorflow as tf
-import os
-from sklearn.utils import shuffle
-import scipy as sp
-from tensorflow.contrib.learn import LinearClassifier,DNNClassifier,DNNLinearCombinedClassifier
-from tensorflow.contrib.layers import embedding_column, sparse_column_with_integerized_feature
-SUB = True
-directory = "pre/"
-model_dir="model"
-model_type="wide_n_deep"
-train_steps=200
 
-COLUMNS = [u'label', u'clickTime', u'conversionTime', u'creativeID', u'userID',
-       u'positionID', u'connectionType', u'telecomsOperator', u'age',
-       u'gender', u'education', u'marriageStatus', u'haveBaby', u'hometown',
-       u'residence', u'adID', u'camgaignID', u'advertiserID', u'appID',
-       u'appPlatform', u'appCategory']
+import pandas as pd
+import numpy as np
+import tempfile
+import tensorflow as tf
+from tensorflow.contrib.learn import LinearClassifier,DNNClassifier,DNNLinearCombinedClassifier
+from sklearn.utils import shuffle
+
 #没用conversionTime creativeID userID appID
 CATEGORICAL_COLUMNS = ["clickTime",
                        "positionID", "connectionType", "telecomsOperator",'age',
                        'gender', 'education', 'marriageStatus','haveBaby','hometown',
                        'residence','adID','camgaignID','advertiserID',
                        'appPlatform','appCategory']
-CONTINUOUS_COLUMNS = []
-
 #构建模型
 def build_estimator(model_dir, model_type):
   """Build an estimator."""
@@ -113,98 +100,62 @@ def build_estimator(model_dir, model_type):
         fix_global_step_increment_bug=True)
   return m
 
-def input_fn(df):
-  """Input builder function."""
 
-  categorical_cols = {
-      k: tf.SparseTensor(
-          indices=[[i, 0] for i in range(df[k].size)],
-          values=df[k].values,
-          dense_shape=[df[k].size, 1])
-      for k in CATEGORICAL_COLUMNS}
+def input_fn(df,batch_size=None,mode=None):
+  """Input builder function."""
+  if mode=='train':
+      labels_all = df["label"].values
+      shuffle_indices = np.random.permutation(np.arange(len(labels_all)))
+
+      indices=shuffle_indices[0:batch_size]
+      labels = labels_all[indices]
+      data = {k: df[k].values[indices] for k in CATEGORICAL_COLUMNS}
+
+      categorical_cols = {
+          k: tf.SparseTensor(
+              indices=[[i, 0] for i in range(batch_size)],
+              values=data[k],
+              dense_shape=[batch_size, 1])
+          for k in CATEGORICAL_COLUMNS}
+  else:
+      labels =df["label"].values
+      categorical_cols = {
+          k: tf.SparseTensor(
+              indices=[[i, 0] for i in range(df[k].size)],
+              values=df[k].values,
+              dense_shape=[df[k].size, 1])
+          for k in CATEGORICAL_COLUMNS}
   feature_cols = dict(categorical_cols)
 
   # Converts the label column into a constant Tensor.
-  label = tf.constant(df["label"].values)
+  label = tf.constant(labels)
   # Returns the feature columns and the label.
   return feature_cols, label
 
-
-def data_process(train_file_name, test_file_name):
-    print("data processing...")
-    # 特征整合
-    df_train = pd.read_csv(train_file_name)
-    df_train.clickTime = df_train.clickTime%10000//100
-    df_test = pd.read_csv(test_file_name)
-
-    df_user = pd.read_csv(directory+'user.csv')
-    df_ad = pd.read_csv(directory+'ad.csv')
-    df_app = pd.read_csv(directory+'app_categories.csv')
-    df_pos = pd.read_csv(directory+'position.csv')
-
-    df_ad_app = pd.merge(df_ad, df_app, on="appID", suffixes=('_a', '_b'))
-
-    df_train_user = pd.merge(df_train, df_user, on="userID", suffixes=('_a', '_b'))
-    df_train_user_app = pd.merge(df_train_user, df_ad_app, on="creativeID", suffixes=('_a', '_b'))
-    df_train_all = pd.merge(df_train_user_app, df_pos, on="positionID", suffixes=('_a', '_b'))
-
-    df_test_user = pd.merge(df_test, df_user, on="userID", suffixes=('_a', '_b'))
-    df_test_user_app = pd.merge(df_test_user, df_ad_app, on="creativeID", suffixes=('_a', '_b'))
-    df_test_all = pd.merge(df_test_user_app, df_pos, on="positionID", suffixes=('_a', '_b'))
-    df_train_all.to_csv(directory+"train_all.csv",index=None)
-    df_test_all.to_csv(directory+"test_all.csv",index=None)
-    #数据划分0.8
-    train = shuffle(df_train_all)
-    n = int(train['label'].count() * 0.8)
-    train_div = train[:n]
-    test_div = train[n:]
-    train_div.to_csv(directory+"train_div.csv",index=None)
-    test_div.to_csv(directory+"test_div.csv",index=None)
-    return 0
-
-#评分函数
-def logloss(act, pred):
-  epsilon = 1e-15
-  pred = sp.maximum(epsilon, pred)
-  pred = sp.minimum(1-epsilon, pred)
-  ll = -sp.mean(act*sp.log(pred) + sp.subtract(1,act)*sp.log(1-pred))
-  return ll
-
-#模型训练和预测
-
-train_data=directory+"train.csv"
-test_data=directory+"test.csv"
-if not (os.path.exists(directory+"train_div.csv") or os.path.exists(directory+"test_div.csv")):
-    data_process(train_data, test_data)
-if(SUB):
-    print("use all train data")
-    df_train = pd.read_csv(directory+"train_all.csv")
-    df_test = pd.read_csv(directory+"test_all.csv")
-    model_dir = tempfile.mkdtemp() if not model_dir else model_dir
+def submitting(model_type, directory):
+    model_dir = directory+'model/'
+    #df_train = pd.read_csv(directory + "test_div.csv")
+    df_test = pd.read_csv(directory + "sub_all.csv")
+    if not model_dir:
+        raise Exception("No model file can be loaded")
 
     m = build_estimator(model_dir, model_type)
-    x_train, y_train =input_fn(df_train)
-    m.fit(x=x_train,y=y_train, steps=train_steps, batch_size=256)
-    x_test, y_test=input_fn(df_test)
-    pred = m.predict_proba(x = x_test, y=y_test, as_iterable=False, batch_size=256)
+    #m.fit(input_fn=lambda: input_fn(df_train), steps=train_steps)
+    pred = m.predict_proba(input_fn=lambda: input_fn(df_test), as_iterable=False)
     pred = pred[:, 1]
 
-    # 输出
     df_test['prob'] = pred
     ans = df_test[['instanceID', 'prob']]
-    ans.to_csv(directory + 'submission.csv', index=None)
-else:
-    print("use only 80% train data")
-    df_train = pd.read_csv(directory+"train_div.csv")
-    df_test = pd.read_csv(directory+"test_div.csv")
-    df_train = pd.read_csv(directory+"train_all.csv")
-    df_test = pd.read_csv(directory+"test_all.csv")
-    model_dir = tempfile.mkdtemp() if not model_dir else model_dir
+    ans.to_csv(directory + model_type+'_submission.csv', index=None)
 
+def training(model_type, directory, batch_size,epoch):
+    model_dir = directory + 'model/'
+    df_train = pd.read_csv(directory + "train_div.csv")
+    df_test = pd.read_csv(directory + "test_div.csv")
+    train_steps = df_train.shape[0] // batch_size * epoch
+    model_dir = tempfile.mkdtemp() if not model_dir else model_dir
     m = build_estimator(model_dir, model_type)
-    x_train, y_train =input_fn(df_train)
-    m.fit(x=x_train,y=y_train, steps=train_steps, batch_size=256)
-    x_test, y_test=input_fn(df_test)
-    results = m.evaluate(x = x_test, y=y_test, as_iterable=False, batch_size=256)
+    #m.fit(input_fn=lambda: input_fn(df_train,batch_size=batch_size,mode='train'), steps=train_steps)
+    results = m.evaluate(input_fn=lambda: input_fn(df_test), steps=1)
     for key in sorted(results):
         print("%s: %s" % (key, results[key]))
