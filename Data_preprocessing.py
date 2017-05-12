@@ -43,10 +43,9 @@ def data_preprocess(directory=DIRECTORY, test_size=TEST_SIZE):
     df_sub_user = pd.merge(df_sub, df_user, on="userID", suffixes=('_a', '_b'))
     df_sub_user_app = pd.merge(df_sub_user, df_ad_app, on="creativeID", suffixes=('_a', '_b'))
     df_sub_all = pd.merge(df_sub_user_app, df_pos, on="positionID", suffixes=('_a', '_b'))
-
+    df_sub_all.sort(columns="instanceID", axis=0)
     df_sub_all.to_csv(directory+"sub_all.csv", index=None)
 
 if __name__ == '__main__':
     if not (os.path.exists(DIRECTORY + "train_div.csv") or os.path.exists(DIRECTORY + "test_div.csv")):
         data_preprocess(directory=DIRECTORY, test_size=TEST_SIZE)
-
