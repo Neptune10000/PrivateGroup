@@ -35,5 +35,5 @@ def data_preprocess(directory='../pre/', test_size=0.2):
     df_sub_user = pd.merge(df_sub, df_user, on="userID", suffixes=('_a', '_b'))
     df_sub_user_app = pd.merge(df_sub_user, df_ad_app, on="creativeID", suffixes=('_a', '_b'))
     df_sub_all = pd.merge(df_sub_user_app, df_pos, on="positionID", suffixes=('_a', '_b'))
-
+    df_sub_all.sort(columns="instanceID", axis=0)
     df_sub_all.to_csv(directory+"sub_all.csv",index=None)
