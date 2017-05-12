@@ -132,8 +132,7 @@ def input_fn(df,batch_size=None,mode=None):
   # Returns the feature columns and the label.
   return feature_cols, label
 
-def submitting(model_type, directory):
-    model_dir = directory+'model/'
+def submitting(model_type, directory,model_dir):
     #df_train = pd.read_csv(directory + "test_div.csv")
     df_test = pd.read_csv(directory + "sub_all.csv")
     if not model_dir:
@@ -148,8 +147,7 @@ def submitting(model_type, directory):
     ans = df_test[['instanceID', 'prob']]
     ans.to_csv(directory + model_type+'_submission.csv', index=None)
 
-def training(model_type, directory, batch_size,epoch):
-    model_dir = directory + 'model/'
+def training(model_type, directory, batch_size,epoch,model_dir):
     df_train = pd.read_csv(directory + "train_div.csv")
     df_test = pd.read_csv(directory + "test_div.csv")
     train_steps = df_train.shape[0] // batch_size * epoch
