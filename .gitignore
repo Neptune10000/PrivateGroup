@@ -1,2 +1,4 @@
 /.idea
 .idea
+*.ipynb
+.DS_Store
