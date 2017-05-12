@@ -9,16 +9,24 @@ def Data_preprocessing(directory='../pre/', test_size=0.2):
     # Preprocess data, read csv file, split train set and test set.
 
     train_file_name = 'train.csv'
-
+    # Preprocess train data.
     df_train = pd.read_csv(directory + train_file_name)
     df_train.clickTime = df_train.clickTime % 10000 // 100
+    train_data = df_train.drop(['label', 'conversionTime'], axis=1)
+    y_data = df_train.ix[:, ['label', 'conversionTime']]  # Two columns, label and conversionTime
 
+    x_train, x_test, y_train, y_test = train_test_split(train_data, y_data, test_size=test_size, random_state=42)
+    ##
     df_user = pd.read_csv(directory + 'user.csv')
     df_useri = pd.read_csv(directory + 'user_installedapps.csv')
     # df_useraa = pd.read_csv(directory + 'user_app_actions.csv')
     df_ad = pd.read_csv(directory + 'ad.csv')
     df_appc = pd.read_csv(directory + 'app_categories.csv')
     df_pos = pd.read_csv(directory + 'position.csv')
+
+    x_train = pd.merge(x_train, df_ad, on="userID", suffixes=('_a', '_b'))
+    x_train = pd.merge(x_train, df_appc, on="appID", suffixes=('_a', '_b'))
+
 
     df_ad_app = pd.merge(df_ad, df_appc, on="appID", suffixes=('_a', '_b'))
     df_train_user = pd.merge(df_train, df_user, on="userID", suffixes=('_a', '_b'))
@@ -34,7 +42,7 @@ def Data_preprocessing(directory='../pre/', test_size=0.2):
     train_all_x = df_train_all.drop(['label', 'conversionTime'], axis=1)
     train_all_y = df_train_all.ix[:, ['label', 'conversionTime']]  # Two columns, label and conversionTime
 
-    x_train, x_test, y_train, y_test = train_test_split(train_all_x, train_all_y, test_size=test_size, random_state=42)
+
 
     df_train_all.to_csv(directory + "train_all.csv", index=None)
     train_all_x.to_csv(directory + 'train_all_x.csv', index=None)
