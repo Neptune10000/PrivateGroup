@@ -29,8 +29,12 @@ def data_preprocess(directory=DIRECTORY, test_size=TEST_SIZE):
     df_appc = pd.read_csv(directory + 'app_categories.csv')
     df_pos = pd.read_csv(directory + 'position.csv')
 
-    # df_app_installed = pd.read_csv(directory + 'user_installedapps.csv')
-    # df_app_installed['Appcount'] = df_app_installed.groupby('userID').transform('count').values
+    df_app_installed = pd.read_csv(directory + 'user_installedapps.csv')
+
+    df_app_installed['Appcount'] = df_app_installed.groupby('userID').transform('count').values
+    df_new_app = df_app_installed.drop('appID', 1)
+    df_new_app = df_new_app.drop_duplicates(['userID'], keep='first')
+    df_user = pd.merge(df_user, df_new_app, on='userID', how='left', suffixes=('_a', '_b'))  # Appcount now is part of df_user
 
     df_ad_app = pd.merge(df_ad, df_appc, on="appID", suffixes=('_a', '_b'))
     df_train_user = pd.merge(df_train, df_user, on="userID", suffixes=('_a', '_b'))
